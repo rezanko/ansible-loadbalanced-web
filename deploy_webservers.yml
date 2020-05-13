@@ -1,0 +1,94 @@
+---
+
+- name: Setup Common Config to All
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Reboot after hostname change
+      reboot:
+
+    - name: Add repo EPEL-Release
+      yum:
+        name: epel-release
+        state: present
+
+- name: Setup Multiple Web Servers
+  hosts: webservers
+  gather_facts: no
+  become: yes
+  tasks:    
+    - name: Install LAMP Stack
+      yum:
+        name:
+          - httpd
+          - mariadb
+          - mariadb-server
+          - php
+          - php-pdo
+          - php-mysql
+
+    - name: Copying WebApp Files
+      copy:
+        src: ./templates/index.php
+        dest: /var/www/html/index.php
+
+    - name: Start & Enable httpd Services
+      service:
+        name: httpd
+        enabled: yes
+        state: restarted
+
+    - name : Start & Enable mariadb Services
+      service:
+        name: mariadb
+        enabled: yes
+        state: restarted
+        
+    - name: Open ports for HTTP & HTTPS
+      firewalld:
+        service: "{{ item }}"
+        zone: public
+        permanent: yes
+        immediate: yes
+        state: enabled
+      with_items:
+        - http
+        - https
+
+
+-  name: Setup Load Balancer Node for WebServers
+   hosts: loadbalancers
+   gather_facts: no
+   become: yes
+   tasks:     
+     - name: Install HAProxy
+       yum:
+         name: haproxy
+         state: present
+
+     - name: Setting-up HAProxy config from template
+       template:
+         src: ./templates/haproxy.cfg.j2
+         dest: /etc/haproxy/haproxy.cfg
+
+     - name: Start & Enable HAProxy service
+       service:
+         name: haproxy
+         enabled: yes
+         state: restarted
+
+     - name: Open ports for HTTP & HTTPS
+       firewalld:
+         service: "{{ item }}"
+         zone: public
+         permanent: yes
+         immediate: yes
+         state: enabled
+       with_items:
+         - http
+         - https
